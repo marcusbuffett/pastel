@@ -85,10 +85,7 @@ fn parse_hex(input: &str) -> IResult<&str, Color> {
             let b = b * 16 + b;
             Ok((input, rgb(r, g, b)))
         }
-        _ => Err(Err::Error((
-            "Expected hex string of 3 or 6 characters length",
-            ErrorKind::Many1,
-        ))),
+        _ => Err(Err::Error(nom::error::make_error(input, ErrorKind::Many1))),
     }
 }
 
@@ -157,42 +154,6 @@ fn parse_gray(input: &str) -> IResult<&str, Color> {
     Ok((input, c))
 }
 
-fn parse_lab(input: &str) -> IResult<&str, Color> {
-    let (input, _) = opt(tag_no_case("cie"))(input)?;
-    let (input, _) = tag_no_case("lab(")(input)?;
-    let (input, _) = space0(input)?;
-    let (input, l) = double(input)?;
-    let (input, _) = parse_separator(input)?;
-    let (input, a) = double(input)?;
-    let (input, _) = parse_separator(input)?;
-    let (input, b) = double(input)?;
-    let (input, alpha) = opt(|input: &str| {
-        let (input, _) = parse_separator(input)?;
-        double(input)
-    })(input)?;
-    let (input, _) = space0(input)?;
-    let (input, _) = char(')')(input)?;
-
-    let c = Color::from_lab(l, a, b, alpha.unwrap_or(1.0));
-
-    Ok((input, c))
-}
-
-fn parse_named(input: &str) -> IResult<&str, Color> {
-    let (input, color) = all_consuming(alpha1)(input)?;
-    let nc = NAMED_COLORS
-        .iter()
-        .find(|nc| color.to_lowercase() == nc.name);
-
-    match nc {
-        None => Err(Err::Error((
-            "Couldn't find matching named color",
-            ErrorKind::Alpha,
-        ))),
-        Some(nc) => Ok((input, nc.color.clone())),
-    }
-}
-
 pub fn parse_color(input: &str) -> Option<Color> {
     alt((
         all_consuming(parse_hex),
@@ -200,8 +161,6 @@ pub fn parse_color(input: &str) -> Option<Color> {
         all_consuming(parse_percentage_rgb),
         all_consuming(parse_hsl),
         all_consuming(parse_gray),
-        all_consuming(parse_lab),
-        all_consuming(parse_named),
     ))(input.trim())
     .ok()
     .map(|(_, c)| c)
